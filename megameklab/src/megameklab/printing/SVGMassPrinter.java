@@ -257,20 +257,20 @@ public class SVGMassPrinter {
                       || wp.getAmmoType().getCategory().equals(AmmoType.AmmoCategory.Energy)) {
                     return "E";
                 }
-                if (wp.hasFlag(WeaponType.F_MISSILE) || wp.getAmmoType()
+                if (wp.hasFlag(WeaponType.F_ARTILLERY) || wp.getAmmoType()
                       .getCategory()
-                      .equals(AmmoType.AmmoCategory.Missile)) {
-                    return "M";
+                      .equals(AmmoType.AmmoCategory.Artillery)) {
+                    return "A";
                 }
                 if (wp.hasFlag(WeaponType.F_BALLISTIC) || wp.getAmmoType()
                       .getCategory()
                       .equals(AmmoType.AmmoCategory.Ballistic)) {
                     return "B";
                 }
-                if (wp.hasFlag(WeaponType.F_ARTILLERY) || wp.getAmmoType()
+                if (wp.hasFlag(WeaponType.F_MISSILE) || wp.getAmmoType()
                       .getCategory()
-                      .equals(AmmoType.AmmoCategory.Artillery)) {
-                    return "A";
+                      .equals(AmmoType.AmmoCategory.Missile)) {
+                    return "M";
                 }
             } else
             if (eq instanceof AmmoType ammo) {
