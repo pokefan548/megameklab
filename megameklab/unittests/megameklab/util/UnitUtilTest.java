@@ -87,15 +87,15 @@ class UnitUtilTest {
         assertTrue(UnitUtil.isLegal(mek, lostech));
     }
 
-      @Test
-      void saveWithoutGeneratorKeepsMtfUUIDFirst() {
-            Mek mek = new BipedMek();
+    @Test
+    void saveWithoutGeneratorKeepsMtfUUIDFirst() {
+        Mek mek = new BipedMek();
 
-            String saved = UnitUtil.saveUnitToString(mek, false);
+        String saved = UnitUtil.saveUnitToString(mek, false);
 
-            assertTrue(saved.startsWith("uuid:" + mek.getUnitFileUUID()));
-            assertFalse(saved.contains("generator:"));
-      }
+        assertTrue(saved.startsWith("uuid:" + mek.getUnitFileUUID()));
+        assertFalse(saved.contains("generator:"));
+    }
 
       @Test
       void saveWithoutGeneratorKeepsCompleteBlkHeader() throws Exception {
