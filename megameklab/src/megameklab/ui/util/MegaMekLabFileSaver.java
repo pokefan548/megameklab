@@ -110,7 +110,7 @@ public class MegaMekLabFileSaver {
             if (selectedFile == null) {
                 return null;
             }
-            filePathName = selectedFile.getPath();
+            return saveUnitAsTo(ownerFrame, selectedFile, entity);
         }
 
         CConfig.setMostRecentFile(filePathName);
