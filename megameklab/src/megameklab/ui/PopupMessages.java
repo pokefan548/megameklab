@@ -125,7 +125,7 @@ public final class PopupMessages {
     public static UnitFileUUIDChoice showUnitFileUUIDConflict(Component parent, Entity currentEntity,
         Entity targetEntity) {
         String message = String.format(resources.getString("unitFileUUIDConflict"),
-            targetEntity.getChassis(), targetEntity.getModel(), targetEntity.getUnitFileUUID(),
+            targetEntity.getOriginalChassis(), targetEntity.getOriginalModel(), targetEntity.getOriginalUnitFileUUID(),
             currentEntity.getChassis(), currentEntity.getModel(), currentEntity.getUnitFileUUID());
         Object[] options = {
             resources.getString("keepTargetUnitUUID"),
