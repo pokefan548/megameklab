@@ -37,8 +37,8 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.function.Function;
+import java.util.function.Predicate;
 
 import javax.swing.table.AbstractTableModel;
 
@@ -63,6 +63,9 @@ public class AvailabilityTableModel extends AbstractTableModel {
     private static final int COLUMN_COUNT = 4;
 
     private final List<AvailabilityRow> rows = new ArrayList<>();
+
+    /** The unit's introduction year, shown in the From column for rows that start at intro rather than a set year. */
+    private int introYear = ForceGeneratorAvailability.UNSPECIFIED_YEAR;
 
     /**
      * One faction's availability, as the player sees it.
@@ -118,10 +121,25 @@ public class AvailabilityTableModel extends AbstractTableModel {
         return switch (columnIndex) {
             case COL_FACTION -> row.factionName() + " (" + row.factionCode() + ")";
             case COL_AVAILABILITY -> row.availability() + "  " + AvailabilityCalibration.describe(row.availability());
-            case COL_FROM -> yearText(row.fromYear());
+            // A row that starts at the unit's intro year shows that year rather than a blank, so the column is not
+            // confusingly empty. The stored value stays unspecified, so it still tracks the intro year if it changes.
+            case COL_FROM -> yearText((row.fromYear() == ForceGeneratorAvailability.UNSPECIFIED_YEAR)
+                  ? introYear : row.fromYear());
             case COL_TO -> yearText(row.toYear());
             default -> "";
         };
+    }
+
+    /**
+     * Sets the unit's introduction year, used to fill in the From column for rows that start at intro.
+     *
+     * @param introYear the unit's introduction year
+     */
+    public void setIntroYear(int introYear) {
+        if (this.introYear != introYear) {
+            this.introYear = introYear;
+            fireTableDataChanged();
+        }
     }
 
     private static String yearText(int year) {
@@ -180,15 +198,16 @@ public class AvailabilityTableModel extends AbstractTableModel {
     }
 
     /**
-     * Marks the rows whose faction does not exist in the given year. Happens when the player changes the intro year on
-     * Basic Info after filling this tab in: Clan Wolf is a real choice for a 3050 unit and a dead one for a 3150 unit.
+     * Marks rows whose faction is never active during the years that row applies. A future faction added on purpose,
+     * with a year range that reaches the years it exists, is NOT stale; a faction that died before the unit's time is.
+     * The check is passed in because it needs the Force Generator's faction data, which the model does not hold.
      *
-     * @param activeFactionCodes the factions that exist in the unit's current year
+     * @param staleCheck returns true when a row's faction cannot be used in that row's years
      */
-    public void markStaleFactions(Set<String> activeFactionCodes) {
+    public void markStaleRows(Predicate<AvailabilityRow> staleCheck) {
         for (int index = 0; index < rows.size(); index++) {
             AvailabilityRow row = rows.get(index);
-            boolean stale = !activeFactionCodes.contains(row.factionCode());
+            boolean stale = staleCheck.test(row);
             if (stale != row.stale()) {
                 rows.set(index, row.withStale(stale));
                 fireTableRowsUpdated(index, index);

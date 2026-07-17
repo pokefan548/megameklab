@@ -38,7 +38,6 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.List;
-import java.util.Set;
 import java.util.function.Function;
 
 import megamek.common.units.ForceGeneratorAvailability;
@@ -155,17 +154,27 @@ class AvailabilityTableModelTest {
     }
 
     @Test
-    void factionsThatDoNotExistInTheUnitsYearAreFlagged() {
-        // Clan Wolf is a real choice for a 3050 unit and a dead one for a 3150 unit. Changing the intro year on Basic
-        // Info after filling this tab in must not leave the player with a silently dead row.
+    void rowsAreFlaggedByTheSuppliedStaleCheck() {
+        // The check is supplied by the tab, which has the faction data. The model just applies it to each row.
         model.addRow(new AvailabilityRow("CW", "Clan Wolf", 5, UNSPECIFIED_YEAR, UNSPECIFIED_YEAR, false));
         model.addRow(new AvailabilityRow("CWE", "Wolf Empire", 5, UNSPECIFIED_YEAR, UNSPECIFIED_YEAR, false));
 
-        model.markStaleFactions(Set.of("CWE", "FS", "LA"));
+        model.markStaleRows(row -> row.factionCode().equals("CW"));
 
         assertTrue(model.getRow(0).stale());
         assertFalse(model.getRow(1).stale());
         assertTrue(model.hasStaleRows());
+    }
+
+    @Test
+    void aRowStartingAtIntroShowsTheIntroYearInTheFromColumn() {
+        model.setIntroYear(3050);
+        model.addRow(new AvailabilityRow("FS", "Federated Suns", 5, UNSPECIFIED_YEAR, UNSPECIFIED_YEAR, false));
+
+        assertEquals("3050", model.getValueAt(0, AvailabilityTableModel.COL_FROM),
+              "A blank From column reads as empty; showing the intro year is clearer");
+        assertEquals("", model.getValueAt(0, AvailabilityTableModel.COL_TO),
+              "An open end still shows blank, meaning never stops");
     }
 
     @Test

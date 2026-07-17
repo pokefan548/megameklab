@@ -42,6 +42,7 @@ import java.awt.event.ComponentEvent;
 import java.awt.event.ComponentListener;
 import java.io.Serial;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.EnumSet;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
@@ -66,6 +67,7 @@ import javax.swing.JTextArea;
 import javax.swing.ListSelectionModel;
 import javax.swing.SpinnerNumberModel;
 import javax.swing.table.DefaultTableCellRenderer;
+import javax.swing.table.TableRowSorter;
 
 import megamek.client.ratgenerator.AvailabilityRating;
 import megamek.client.ratgenerator.FactionRecord;
@@ -208,8 +210,9 @@ public class AvailabilityTab extends ITab {
               + "  -  introduced " + entity.getYear()
               + "  -  " + (isCanonUnit() ? "canon unit" : "custom unit"));
 
+        tableModel.setIntroYear(entity.getYear());
         tableModel.loadFrom(entity.getForceGeneratorAvailability(), this::factionNameOf);
-        tableModel.markStaleFactions(activeFactionCodes());
+        tableModel.markStaleRows(this::isRowStale);
         loadMissionRoles(entity.getMissionRoles());
 
         updateWarnings();
@@ -251,6 +254,15 @@ public class AvailabilityTab extends ITab {
                 updateEditorFromSelection();
             }
         });
+
+        // Clicking a column header sorts by it. The cells are display text ("4  rare", "3085"), so the numeric columns
+        // need comparators that read the number rather than sorting the text.
+        TableRowSorter<AvailabilityTableModel> sorter = new TableRowSorter<>(tableModel);
+        sorter.setComparator(AvailabilityTableModel.COL_AVAILABILITY, Comparator.comparingInt(AvailabilityTab::leadingInt));
+        sorter.setComparator(AvailabilityTableModel.COL_FROM, Comparator.comparingInt(AvailabilityTab::yearValue));
+        sorter.setComparator(AvailabilityTableModel.COL_TO, Comparator.comparingInt(AvailabilityTab::yearValue));
+        factionTable.setRowSorter(sorter);
+
         factionTable.setDefaultRenderer(Object.class, new StaleRowRenderer());
         JScrollPane tableScroll = new JScrollPane(factionTable);
         tableScroll.setPreferredSize(UIUtil.scaleForGUI(TABLE_WIDTH, TABLE_HEIGHT));
@@ -314,7 +326,7 @@ public class AvailabilityTab extends ITab {
                   false));
         }
 
-        tableModel.markStaleFactions(activeFactionCodes());
+        tableModel.markStaleRows(this::isRowStale);
         writeBack();
     }
 
@@ -406,12 +418,12 @@ public class AvailabilityTab extends ITab {
                   false));
         }
 
-        tableModel.markStaleFactions(activeFactionCodes());
+        tableModel.markStaleRows(this::isRowStale);
         writeBack();
     }
 
     private void removeSelectedFaction() {
-        int selected = factionTable.getSelectedRow();
+        int selected = selectedModelRow();
         if (selected < 0) {
             return;
         }
@@ -420,10 +432,39 @@ public class AvailabilityTab extends ITab {
         writeBack();
     }
 
+    /**
+     * The model index of the selected row, or -1 if none. The table can be sorted, so the selected view row is mapped
+     * back to the model before it is used to read or change a row.
+     *
+     * @return the selected model row, or -1
+     */
+    private int selectedModelRow() {
+        int viewRow = factionTable.getSelectedRow();
+
+        return (viewRow < 0) ? -1 : factionTable.convertRowIndexToModel(viewRow);
+    }
+
+    /** Reads the leading number out of a cell like "4  rare", for sorting the How common column by value. */
+    private static int leadingInt(String text) {
+        int end = 0;
+        while ((end < text.length()) && Character.isDigit(text.charAt(end))) {
+            end++;
+        }
+
+        return (end == 0) ? 0 : Integer.parseInt(text.substring(0, end));
+    }
+
+    /** Reads a year out of a cell, treating a blank (never stops) as the largest value so it sorts last. */
+    private static int yearValue(String text) {
+        String trimmed = text.trim();
+
+        return trimmed.isEmpty() ? Integer.MAX_VALUE : Integer.parseInt(trimmed);
+    }
+
     // --- Editor strip -------------------------------------------------------------------------------------------
 
     private void updateEditorFromSelection() {
-        int selected = factionTable.getSelectedRow();
+        int selected = selectedModelRow();
         boolean hasSelection = (selected >= 0) && (selected < tableModel.getRowCount());
 
         availabilitySlider.setEnabled(hasSelection);
@@ -459,7 +500,7 @@ public class AvailabilityTab extends ITab {
             return;
         }
 
-        int selected = factionTable.getSelectedRow();
+        int selected = selectedModelRow();
         if (selected < 0) {
             return;
         }
@@ -475,7 +516,7 @@ public class AvailabilityTab extends ITab {
             return;
         }
 
-        int selected = factionTable.getSelectedRow();
+        int selected = selectedModelRow();
         if (selected < 0) {
             return;
         }
@@ -644,8 +685,8 @@ public class AvailabilityTab extends ITab {
         }
 
         if (tableModel.hasStaleRows()) {
-            warnings.add("Some factions in the table do not exist in " + getEntity().getYear()
-                  + ". Those entries will never be used.");
+            warnings.add("Some factions never exist during the years their row covers, so those entries will never be "
+                  + "used. Give them a year range that reaches the years they exist, or remove them.");
         }
 
         String eraAlignmentWarning = eraAlignmentWarning();
@@ -783,20 +824,36 @@ public class AvailabilityTab extends ITab {
         return (factionRecord == null) ? factionCode : factionRecord.getName(getEntity().getYear());
     }
 
-    private Set<String> activeFactionCodes() {
+    /**
+     * Whether a row's faction can never be used during the years that row applies. A future faction added on purpose,
+     * whose range reaches the years it exists, is fine; a faction that died out before the row's years is not. This is
+     * checked against the row's own start year, not the unit's intro year, so deliberately adding a later faction does
+     * not trip the warning.
+     *
+     * @param row the row to check
+     *
+     * @return {@code true} if the faction is not active at or after the row's first year
+     */
+    private boolean isRowStale(AvailabilityRow row) {
+        if (AddFactionsDialog.UMBRELLA_CODES.contains(row.factionCode())) {
+            return false;
+        }
+
         RATGenerator ratGenerator = RATGenerator.getInstance();
-        Set<String> codes = new HashSet<>(AddFactionsDialog.UMBRELLA_CODES);
         if (!ratGenerator.isInitialized()) {
-            return codes;
+            return false;
         }
 
-        for (FactionRecord factionRecord : ratGenerator.getFactionList()) {
-            if (factionRecord.isActiveInYear(getEntity().getYear())) {
-                codes.add(factionRecord.getKey());
-            }
+        FactionRecord factionRecord = ratGenerator.getFaction(row.factionCode());
+        if (factionRecord == null) {
+            return false;
         }
 
-        return codes;
+        int firstYear = (row.fromYear() == ForceGeneratorAvailability.UNSPECIFIED_YEAR)
+              ? getEntity().getYear()
+              : row.fromYear();
+
+        return !factionRecord.isActiveInOrAfterYear(firstYear);
     }
 
     // --- Persistence --------------------------------------------------------------------------------------------
@@ -828,7 +885,8 @@ public class AvailabilityTab extends ITab {
             Component component = super.getTableCellRendererComponent(table, value, isSelected, hasFocus, row, column);
 
             AvailabilityTableModel model = (AvailabilityTableModel) table.getModel();
-            if (model.getRow(row).stale() && !isSelected) {
+            // row is a view index; the sorter can reorder rows, so map it back to the model before reading the row
+            if (model.getRow(table.convertRowIndexToModel(row)).stale() && !isSelected) {
                 component.setForeground(Color.RED);
             } else if (!isSelected) {
                 component.setForeground(table.getForeground());
