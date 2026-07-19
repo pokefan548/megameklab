@@ -144,8 +144,8 @@ public class SVGMassPrinter {
     private static boolean SKIP_UNITS = false; // Set to true to skip units generation
     private static boolean SKIP_EQUIPMENT = false; // Set to true to skip equipment generation
     private static boolean SKIP_UNIT_FILES = true; // Set to true to skip BLK/MTF re-save generation
-    private static boolean SKIP_DETAILED_CALCULATIONS = true; // Set to true to skip the detailed BC/Cost calculations
-    private static final boolean EXPORT_CALCULATION_DETAILS_TO_FILES = true; // Set to true to not embed the detailed BC/Cost calculations into the units.json but in a subfolder keyed by name
+    private static boolean SKIP_DETAILED_CALCULATIONS = true; // Set to true to skip the detailed BV/Cost calculations
+    private static final boolean EXPORT_CALCULATION_DETAILS_TO_FILES = true; // Set to true to not embed the detailed BV/Cost calculations into the units.json but in a subfolder keyed by name
     private static boolean EXPORT_CALCULATIONS_AS_TEXT = true;
 
     private static final MMLogger logger = MMLogger.create(SVGMassPrinter.class);
@@ -2625,7 +2625,7 @@ public class SVGMassPrinter {
             .collect(Collectors.toList());
 
 
-        if (EXPORT_CALCULATION_DETAILS_TO_FILES) {
+        if (EXPORT_CALCULATION_DETAILS_TO_FILES && !SKIP_DETAILED_CALCULATIONS) {
             exportCalculationDetails(mapper, unitDataList);
         }
 
